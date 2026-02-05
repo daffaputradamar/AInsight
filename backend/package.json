@@ -1,0 +1,28 @@
+{
+  "name": "adk-agent-system",
+  "version": "1.0.0",
+  "description": "ADK.js multi-agent orchestration system with OpenAI and PostgreSQL",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "node --loader tsx src/server.ts",
+    "cli": "node --loader tsx src/cli.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "start:cli": "node dist/cli.js",
+    "lint": "eslint src --ext .ts"
+  },
+  "keywords": ["adk", "agents", "orchestration", "llm", "postgresql"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "openai": "^4.71.0",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/pg": "^8.11.6",
+    "typescript": "5.7.3",
+    "tsx": "^4.16.0"
+  }
+}

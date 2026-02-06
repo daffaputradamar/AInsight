@@ -40,6 +40,10 @@ export interface VisualizationSpec {
     yAxis?: string;
     data?: unknown[];
 }
+export interface ChartGenerationOutput {
+    visualizationSpec: VisualizationSpec;
+    reasoning: string;
+}
 export interface AgentResponse {
     stage: 'understanding' | 'generation' | 'execution' | 'reasoning' | 'insight' | 'chat';
     output: unknown;

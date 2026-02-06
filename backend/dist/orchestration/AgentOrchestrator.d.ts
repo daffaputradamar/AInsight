@@ -37,6 +37,7 @@ export declare class AgentOrchestrator {
     private executionAgent;
     private reasoningAgent;
     private dataInsightAgent;
+    private chartAgent;
     private mcpClient;
     private mcpServerId;
     private mcpServerConfig;

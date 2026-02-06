@@ -163,21 +163,39 @@ export class ExecutionAgent extends Agent {
             }
         }
         try {
+            // Provide fetchData function for SQL queries
+            const fetchData = async (sql) => {
+                if (!this.dbAdapter) {
+                    throw new Error('Database adapter not configured');
+                }
+                return await this.dbAdapter.executeQuery(sql);
+            };
+            // Provide sql tagged template function
+            const sql = (strings, ...values) => {
+                let query = strings[0];
+                for (let i = 0; i < values.length; i++) {
+                    query += String(values[i]) + strings[i + 1];
+                }
+                return fetchData(query);
+            };
             // Execute in a restricted scope
             // eslint-disable-next-line no-new-func
-            const fn = new Function('data', 'console', `"use strict";
+            const fn = new Function('fetchData', 'sql', 'data', 'console', `"use strict";
         const require = undefined;
         const process = undefined;
         const global = undefined;
         const globalThis = undefined;
         const fetch = undefined;
-        ${code}`);
+        
+        return (async () => {
+          ${code}
+        })();`);
             const mockConsole = {
                 log: (...args) => console.log('[Sandbox]', ...args),
                 error: (...args) => console.error('[Sandbox]', ...args),
                 warn: (...args) => console.warn('[Sandbox]', ...args),
             };
-            const result = fn({}, mockConsole);
+            const result = await fn(fetchData, sql, {}, mockConsole);
             const executionTime = Date.now() - startTime;
             return {
                 success: true,

@@ -8,6 +8,7 @@ import { CodeGenerationAgent } from '../agents/CodeGenerationAgent.js';
 import { ExecutionAgent } from '../agents/ExecutionAgent.js';
 import { ReasoningAgent } from '../agents/ReasoningAgent.js';
 import { DataInsightAgent } from '../agents/DataInsightAgent.js';
+import { ChartGenerationAgent } from '../agents/ChartGenerationAgent.js';
 import {
   QueryUnderstandingOutput,
   CodeGenerationOutput,
@@ -15,6 +16,8 @@ import {
   ReasoningOutput,
   EvaluationOutput,
   DataInsightOutput,
+  ChartGenerationOutput,
+  VisualizationSpec,
   AgentResponse,
 } from '../agents/types.js';
 
@@ -56,6 +59,7 @@ export class AgentOrchestrator {
   private executionAgent: ExecutionAgent;
   private reasoningAgent: ReasoningAgent;
   private dataInsightAgent: DataInsightAgent;
+  private chartAgent: ChartGenerationAgent;
   private mcpClient: MCPClient | null = null;
   private mcpServerId: string | null = null;
   private mcpServerConfig: MCPServerConfig | null = null;
@@ -89,6 +93,7 @@ export class AgentOrchestrator {
     this.codeAgent = new CodeGenerationAgent(baseContext);
     this.reasoningAgent = new ReasoningAgent(baseContext);
     this.dataInsightAgent = new DataInsightAgent(baseContext);
+    this.chartAgent = new ChartGenerationAgent(baseContext);
 
     // Store MCP config for lazy initialization
     if (config?.useMCP || process.env.USE_MCP_EXECUTION === 'true') {
@@ -217,6 +222,7 @@ export class AgentOrchestrator {
     let lastExecutionOutput: ExecutionResult | null = null;
     let lastReasoningOutput: ReasoningOutput | null = null;
     let lastCodeOutput: CodeGenerationOutput | null = null;
+    let visualizationSpec: VisualizationSpec | undefined;
 
     while (state.iterations < this.maxIterations) {
       state.iterations++;
@@ -336,6 +342,27 @@ export class AgentOrchestrator {
 
       // If satisfied or no more iterations, break
       if (evaluationOutput.satisfiesQuery || state.iterations >= this.maxIterations) {
+        // Stage 6: Chart Generation (if visualization needed and we have data)
+        if (understandingOutput.shouldVisualize && lastExecutionOutput?.data && lastExecutionOutput.data.length > 0) {
+          console.log('[Orchestrator] Stage 6: Chart Generation');
+          try {
+            const chartResult = await this.chartAgent.executeTool<
+              { query: string; data: Record<string, unknown>[]; explanation: string },
+              ChartGenerationOutput
+            >('generateChart', {
+              query: userQuery,
+              data: lastExecutionOutput.data as Record<string, unknown>[],
+              explanation: lastReasoningOutput?.explanation || '',
+            });
+
+            if (chartResult.success && chartResult.output) {
+              visualizationSpec = chartResult.output.visualizationSpec;
+              console.log(`[Orchestrator] Chart generated: type=${visualizationSpec.type}, title="${visualizationSpec.title}"`);
+            }
+          } catch (chartError) {
+            console.warn('[Orchestrator] Chart generation failed, will use frontend auto-detection:', chartError);
+          }
+        }
         break;
       }
 
@@ -353,6 +380,7 @@ export class AgentOrchestrator {
       insights: lastReasoningOutput?.insights || [],
       executionTime: lastExecutionOutput?.executionTime || 0,
       requiresVisualization: lastCodeOutput?.requiresVisualization || false,
+      visualizationSpec,
       iterations: state.iterations,
       iterationHistory: state.iterationHistory,
     };

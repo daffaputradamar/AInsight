@@ -185,9 +185,18 @@ export class ExecutionAgent extends Agent {
     }
 
     try {
+      // Provide fetchData function for SQL queries
+      const fetchData = async (sql: string): Promise<any[]> => {
+        if (!this.dbAdapter) {
+          throw new Error('Database adapter not configured');
+        }
+        return await this.dbAdapter.executeQuery(sql);
+      };
+
       // Execute in a restricted scope
       // eslint-disable-next-line no-new-func
       const fn = new Function(
+        'fetchData',
         'data',
         'console',
         `"use strict";
@@ -196,7 +205,10 @@ export class ExecutionAgent extends Agent {
         const global = undefined;
         const globalThis = undefined;
         const fetch = undefined;
-        ${code}`,
+        
+        return (async () => {
+          ${code}
+        })();`,
       );
 
       const mockConsole = {
@@ -205,7 +217,7 @@ export class ExecutionAgent extends Agent {
         warn: (...args: unknown[]) => console.warn('[Sandbox]', ...args),
       };
 
-      const result = fn({}, mockConsole);
+      const result = await fn(fetchData, {}, mockConsole);
       const executionTime = Date.now() - startTime;
 
       return {

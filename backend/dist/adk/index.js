@@ -3,13 +3,8 @@
  *
  * A framework for building multi-agent systems with LLM orchestration.
  */
-
 // Value exports
 export { Agent, defineTool, z } from './Agent.js';
-
-// Type exports
-export type { AgentConfig, AgentContext, AgentRunResult, ToolDefinition, ToolConfig } from './Agent.js';
-
 // AgentLoop exports
 export { AgentLoop } from './AgentLoop.js';
-export type { AgentLoopConfig, LoopStage, LoopResult } from './AgentLoop.js';
+//# sourceMappingURL=index.js.map

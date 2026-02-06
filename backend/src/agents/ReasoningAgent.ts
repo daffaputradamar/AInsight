@@ -1,5 +1,5 @@
-import { Agent, AgentContext, z } from '../adk';
-import { ReasoningOutput, EvaluationOutput } from './types';
+import { Agent, AgentContext, z } from '../adk/index.js';
+import { ReasoningOutput, EvaluationOutput } from './types.js';
 
 const ReasonInputSchema = z.object({
   query: z.string().describe('Original user query'),

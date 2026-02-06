@@ -5,7 +5,7 @@
  * Agents are executed in a fixed order with results passed forward.
  */
 
-import { Agent, AgentRunResult } from './Agent';
+import { Agent, AgentRunResult } from './Agent.js';
 
 export interface LoopStage<TInput = unknown, TOutput = unknown> {
   name: string;

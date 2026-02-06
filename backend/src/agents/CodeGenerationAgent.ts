@@ -1,6 +1,6 @@
-import { Agent, AgentContext, z } from '../adk';
-import { SchemaMetadata } from '../adapters/postgres';
-import { CodeGenerationOutput } from './types';
+import { Agent, AgentContext, z } from '../adk/index.js';
+import { SchemaMetadata } from '../adapters/postgres.js';
+import { CodeGenerationOutput } from './types.js';
 
 const GenerateInputSchema = z.object({
   query: z.string().describe('User query'),

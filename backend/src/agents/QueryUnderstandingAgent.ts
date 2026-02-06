@@ -1,5 +1,5 @@
-import { Agent, AgentContext, z } from '../adk';
-import { QueryUnderstandingOutput } from './types';
+import { Agent, AgentContext, z } from '../adk/index.js';
+import { QueryUnderstandingOutput } from './types.js';
 
 const ClassifyInputSchema = z.object({
   query: z.string().describe('User natural language query'),

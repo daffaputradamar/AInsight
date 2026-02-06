@@ -1,7 +1,7 @@
-import { Agent, AgentContext, z } from '../adk';
-import { PostgreSQLAdapter } from '../adapters/postgres';
-import { MCPClient, MCPServerConfig, getMCPClient } from '../adapters/mcp';
-import { ExecutionResult } from './types';
+import { Agent, AgentContext, z } from '../adk/index.js';
+import { PostgreSQLAdapter } from '../adapters/postgres.js';
+import { MCPClient, MCPServerConfig, getMCPClient } from '../adapters/mcp.js';
+import { ExecutionResult } from './types.js';
 
 const ExecuteInputSchema = z.object({
   code: z.string().describe('Code to execute'),

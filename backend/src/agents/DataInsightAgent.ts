@@ -1,6 +1,6 @@
-import { Agent, AgentContext, z } from '../adk';
-import { SchemaMetadata } from '../adapters/postgres';
-import { DataInsightOutput } from './types';
+import { Agent, AgentContext, z } from '../adk/index.js';
+import { SchemaMetadata } from '../adapters/postgres.js';
+import { DataInsightOutput } from './types.js';
 
 const AnalyzeSchemaInputSchema = z.object({
   schema: z.custom<SchemaMetadata>().describe('Database schema metadata'),

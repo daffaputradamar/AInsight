@@ -1,8 +1,8 @@
 import 'dotenv/config';
 import http from 'http';
-import { createLLMClient, AVAILABLE_MODELS, getLLMConfig } from './config/llm';
-import { createAdapterForSession, hasSessionConfig, configureSession, getSessionConfig, DbConfig } from './adapters/postgres';
-import { AgentOrchestrator } from './orchestration/AgentOrchestrator';
+import { createLLMClient, AVAILABLE_MODELS, getLLMConfig } from './config/llm.js';
+import { createAdapterForSession, hasSessionConfig, configureSession, getSessionConfig, DbConfig } from './adapters/postgres.js';
+import { AgentOrchestrator } from './orchestration/AgentOrchestrator.js';
 
 const PORT = parseInt(process.env.PORT || '3001');
 

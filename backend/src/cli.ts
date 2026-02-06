@@ -2,9 +2,9 @@
 import 'dotenv/config';
 
 import readline from 'readline';
-import { createLLMClient } from './config/llm';
-import { PostgreSQLAdapter, DbConfig } from './adapters/postgres';
-import { AgentOrchestrator } from './orchestration/AgentOrchestrator';
+import { createLLMClient } from './config/llm.js';
+import { PostgreSQLAdapter, DbConfig } from './adapters/postgres.js';
+import { AgentOrchestrator } from './orchestration/AgentOrchestrator.js';
 
 const rl = readline.createInterface({
   input: process.stdin,

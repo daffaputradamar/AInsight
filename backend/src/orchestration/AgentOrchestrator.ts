@@ -1,13 +1,13 @@
 import OpenAI from 'openai';
-import { AgentContext, AgentRunResult } from '../adk';
-import { PostgreSQLAdapter, SchemaMetadata } from '../adapters/postgres';
-import { MCPClient, MCPServerConfig, getMCPClient } from '../adapters/mcp';
-import { getLLMConfig } from '../config/llm';
-import { QueryUnderstandingAgent } from '../agents/QueryUnderstandingAgent';
-import { CodeGenerationAgent } from '../agents/CodeGenerationAgent';
-import { ExecutionAgent } from '../agents/ExecutionAgent';
-import { ReasoningAgent } from '../agents/ReasoningAgent';
-import { DataInsightAgent } from '../agents/DataInsightAgent';
+import { AgentContext, AgentRunResult } from '../adk/index.js';
+import { PostgreSQLAdapter, SchemaMetadata } from '../adapters/postgres.js';
+import { MCPClient, MCPServerConfig, getMCPClient } from '../adapters/mcp.js';
+import { getLLMConfig } from '../config/llm.js';
+import { QueryUnderstandingAgent } from '../agents/QueryUnderstandingAgent.js';
+import { CodeGenerationAgent } from '../agents/CodeGenerationAgent.js';
+import { ExecutionAgent } from '../agents/ExecutionAgent.js';
+import { ReasoningAgent } from '../agents/ReasoningAgent.js';
+import { DataInsightAgent } from '../agents/DataInsightAgent.js';
 import {
   QueryUnderstandingOutput,
   CodeGenerationOutput,
@@ -16,7 +16,7 @@ import {
   EvaluationOutput,
   DataInsightOutput,
   AgentResponse,
-} from '../agents/types';
+} from '../agents/types.js';
 
 export interface IterationInfo {
   iteration: number;

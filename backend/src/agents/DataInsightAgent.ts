@@ -1,59 +1,82 @@
-import OpenAI from 'openai';
-import { getLLMConfig } from '../config/llm';
+import { Agent, AgentContext, z } from '../adk';
 import { SchemaMetadata } from '../adapters/postgres';
 import { DataInsightOutput } from './types';
 
-export class DataInsightAgent {
-  private llm: OpenAI;
-  private config = getLLMConfig();
+const AnalyzeSchemaInputSchema = z.object({
+  schema: z.custom<SchemaMetadata>().describe('Database schema metadata'),
+});
 
-  constructor(llm: OpenAI) {
-    this.llm = llm;
+const AnalyzeSchemaOutputSchema = z.object({
+  datasetDescription: z.string(),
+  suggestedQuestions: z.array(z.string()),
+});
+
+type AnalyzeSchemaInput = z.infer<typeof AnalyzeSchemaInputSchema>;
+
+/**
+ * DataInsightAgent
+ *
+ * Analyzes database schema on load and generates:
+ * - Dataset description (what the data contains)
+ * - Suggested analytical questions users might ask
+ */
+export class DataInsightAgent extends Agent {
+  constructor(context: AgentContext) {
+    super({
+      ...context,
+      config: {
+        ...context.config,
+        name: 'data-insight',
+        description: 'Analyzes database schema and suggests analytical questions',
+      },
+    });
   }
 
-  async analyzeSchema(schema: SchemaMetadata): Promise<DataInsightOutput> {
-    const schemaStr = this.formatSchemaForAnalysis(schema);
+  protected registerTools(): void {
+    this.registerTool({
+      name: 'analyzeSchema',
+      description: 'Analyze schema and generate insights',
+      inputSchema: AnalyzeSchemaInputSchema,
+      handler: this.analyzeSchema.bind(this),
+    });
+  }
+
+  private async analyzeSchema(input: AnalyzeSchemaInput): Promise<DataInsightOutput> {
+    const schemaStr = this.formatSchemaForAnalysis(input.schema);
     const systemPrompt = `You are a data analyst. Given a database schema, provide insights.
 
 Respond with JSON:
 {
   "datasetDescription": "brief description of dataset",
-  "suggestedQuestions": ["question 1", "question 2", "question 3"]
+  "suggestedQuestions": ["question 1", "question 2", "question 3", "question 4", "question 5"]
 }
 
 Rules:
 - Description: 1-2 sentences about what data is contained
 - Questions: 3-5 analytical questions a user might ask
-- Focus on realistic, useful questions`;
-
-    const message = await this.llm.messages.create({
-      model: this.config.model,
-      messages: [
-        {
-          role: 'user',
-          content: schemaStr,
-        },
-      ],
-      system: systemPrompt,
-      temperature: 0.7,
-      max_tokens: 500,
-    });
-
-    const responseText = message.content[0].type === 'text' ? message.content[0].text : '';
+- Focus on realistic, useful questions
+- Questions should be answerable with the available data
+- Make questions progressively more complex/interesting`;
 
     try {
-      const parsed = JSON.parse(responseText);
+      const result = await this.chatJSON(
+        systemPrompt,
+        schemaStr,
+        AnalyzeSchemaOutputSchema,
+        { temperature: 0.7, maxTokens: 500 },
+      );
+
       return {
-        datasetDescription: parsed.datasetDescription || 'Database dataset',
-        suggestedQuestions: Array.isArray(parsed.suggestedQuestions) ? parsed.suggestedQuestions : [],
-        tableCount: schema.tables.length,
+        datasetDescription: result.datasetDescription || 'Database dataset',
+        suggestedQuestions: Array.isArray(result.suggestedQuestions) ? result.suggestedQuestions : [],
+        tableCount: input.schema.tables.length,
       };
-    } catch {
-      console.error('Failed to parse insight response:', responseText);
+    } catch (error) {
+      console.error('[DataInsightAgent] Failed to parse insight response:', error);
       return {
-        datasetDescription: this.generateDefaultDescription(schema),
-        suggestedQuestions: this.generateDefaultQuestions(schema),
-        tableCount: schema.tables.length,
+        datasetDescription: this.generateDefaultDescription(input.schema),
+        suggestedQuestions: this.generateDefaultQuestions(input.schema),
+        tableCount: input.schema.tables.length,
       };
     }
   }

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
+import 'dotenv/config';
 
 import readline from 'readline';
 import { createLLMClient } from './config/llm';
-import { pgAdapter } from './adapters/postgres';
+import { PostgreSQLAdapter, DbConfig } from './adapters/postgres';
 import { AgentOrchestrator } from './orchestration/AgentOrchestrator';
 
 const rl = readline.createInterface({
@@ -10,16 +11,29 @@ const rl = readline.createInterface({
   output: process.stdout,
 });
 
+// Create adapter from environment variables for CLI
+function createCliAdapter(): PostgreSQLAdapter {
+  const config: DbConfig = {
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432'),
+    database: process.env.DB_NAME || 'postgres',
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || '',
+  };
+  return new PostgreSQLAdapter(config);
+}
+
 async function main(): Promise<void> {
   console.log('=== ADK.js Agent System CLI ===');
   console.log('Connecting to database...');
 
   try {
-    await pgAdapter.connect();
+    const dbAdapter = createCliAdapter();
+    await dbAdapter.testConnection();
     console.log('Connected to PostgreSQL\n');
 
     const llm = createLLMClient();
-    const orchestrator = new AgentOrchestrator(llm);
+    const orchestrator = new AgentOrchestrator(llm, { dbAdapter });
 
     // Get initial insights
     console.log('Fetching dataset insights...\n');

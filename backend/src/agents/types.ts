@@ -4,8 +4,10 @@ export interface AgentInput {
 }
 
 export interface QueryUnderstandingOutput {
+  requiresDatabase: boolean;
   shouldVisualize: boolean;
   intent: string;
+  chatResponse?: string;
 }
 
 export interface CodeGenerationOutput {
@@ -26,6 +28,12 @@ export interface ReasoningOutput {
   insights: string[];
 }
 
+export interface EvaluationOutput {
+  satisfiesQuery: boolean;
+  reason: string;
+  suggestedRefinement?: string;
+}
+
 export interface DataInsightOutput {
   datasetDescription: string;
   suggestedQuestions: string[];
@@ -41,7 +49,7 @@ export interface VisualizationSpec {
 }
 
 export interface AgentResponse {
-  stage: 'understanding' | 'generation' | 'execution' | 'reasoning' | 'insight';
+  stage: 'understanding' | 'generation' | 'execution' | 'reasoning' | 'insight' | 'chat';
   output: unknown;
   timestamp: Date;
 }

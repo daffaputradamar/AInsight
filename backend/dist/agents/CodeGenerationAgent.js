@@ -45,13 +45,23 @@ Rules:
 - No explanations, comments, or markdown outside code blocks
 - Wrap SQL in triple backticks: \`\`\`sql
 - Wrap JavaScript in triple backticks: \`\`\`javascript
-- For data transformation/visualization logic, use JavaScript
-- For pure data retrieval, use SQL
+- STRONGLY PREFER SQL over JavaScript - use SQL for all data retrieval queries
+- Only use JavaScript when complex data transformation is absolutely needed AFTER fetching data
 - Never use INSERT, UPDATE, DELETE, or DROP statements
 - Only SELECT queries with JOIN, GROUP BY, ORDER BY as needed
 - Must use ONLY columns that exist in the schema above
 - ALWAYS include LIMIT ${maxRows} in SQL queries unless user explicitly specifies a different limit
-- If user asks for "all" data, still limit to ${maxRows} rows`;
+- If user asks for "all" data, still limit to ${maxRows} rows
+
+JavaScript Sandbox Rules (ONLY if JavaScript is absolutely necessary):
+- You have access to: fetchData(sqlQuery) - executes SQL and returns array of rows
+- You have access to: sql\`...\` - tagged template for SQL queries (same as fetchData)
+- FORBIDDEN: require, import, fetch, db, process, global, Buffer, eval, Function
+- FORBIDDEN: Any external libraries or Node.js APIs
+- JavaScript code MUST return the final result array
+- Example JavaScript pattern:
+  const data = await fetchData("SELECT * FROM table LIMIT 100");
+  return data.map(row => ({ ...row, computed: row.value * 2 }));`;
         const visualization = input.requiresVisualization
             ? '\n- User wants visualization enabled'
             : '\n- No visualization required';

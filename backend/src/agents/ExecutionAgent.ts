@@ -193,10 +193,20 @@ export class ExecutionAgent extends Agent {
         return await this.dbAdapter.executeQuery(sql);
       };
 
+      // Provide sql tagged template function
+      const sql = (strings: TemplateStringsArray, ...values: any[]) => {
+        let query = strings[0];
+        for (let i = 0; i < values.length; i++) {
+          query += String(values[i]) + strings[i + 1];
+        }
+        return fetchData(query);
+      };
+
       // Execute in a restricted scope
       // eslint-disable-next-line no-new-func
       const fn = new Function(
         'fetchData',
+        'sql',
         'data',
         'console',
         `"use strict";
@@ -217,7 +227,7 @@ export class ExecutionAgent extends Agent {
         warn: (...args: unknown[]) => console.warn('[Sandbox]', ...args),
       };
 
-      const result = await fn(fetchData, {}, mockConsole);
+      const result = await fn(fetchData, sql, {}, mockConsole);
       const executionTime = Date.now() - startTime;
 
       return {

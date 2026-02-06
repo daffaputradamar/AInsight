@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: ainsight-postgres-dev
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ainsight
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./backend/examples/sample_db_setup.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - ainsight-network
+
+  # Backend API (Development with hot reload)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: ainsight-backend-dev
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=ainsight
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-gpt-4o-mini}
+    volumes:
+      - ./backend/src:/app/src:ro
+      - ./backend/tsconfig.json:/app/tsconfig.json:ro
+    depends_on:
+      - postgres
+    networks:
+      - ainsight-network
+
+  # Frontend Next.js (Development with hot reload)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend.dev
+    container_name: ainsight-frontend-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:3001
+    volumes:
+      - ./app:/app/app:ro
+      - ./components:/app/components:ro
+      - ./hooks:/app/hooks:ro
+      - ./lib:/app/lib:ro
+      - ./public:/app/public:ro
+      - ./styles:/app/styles:ro
+      - ./.next:/app/.next
+    depends_on:
+      - backend
+    networks:
+      - ainsight-network
+
+volumes:
+  postgres_dev_data:
+    driver: local
+
+networks:
+  ainsight-network:
+    driver: bridge

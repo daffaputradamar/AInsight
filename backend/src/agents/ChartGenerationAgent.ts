@@ -103,7 +103,7 @@ Respond with JSON only:
         reasoning: result.reasoning,
       };
     } catch (error) {
-      console.error('[ChartGenerationAgent] Failed to generate chart spec:', error);
+      console.error('[ChartGenerationAgent] LLM chart generation failed, using fallback auto-detection:', error instanceof Error ? error.message : error);
       // Fallback to auto-detection
       return this.fallbackChartSpec(input.query, dataColumns, input.data);
     }

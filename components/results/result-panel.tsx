@@ -7,7 +7,8 @@ import { DataTable } from "./data-table";
 import { DataChart } from "./data-chart";
 import { CodeBlock } from "./code-block";
 import type { VisualizationSpec } from "@/lib/types";
-import { Table2, BarChart3, Code2, Clock } from "lucide-react";
+import { Table2, BarChart3, Code2, Clock, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface ResultPanelProps {
   data: Record<string, unknown>[];
@@ -15,6 +16,7 @@ interface ResultPanelProps {
   visualizationSpec?: VisualizationSpec;
   executionTime?: number;
   generatedCode?: { code: string; language: 'sql' | 'javascript' };
+  error?: string;
 }
 
 export function ResultPanel({
@@ -23,12 +25,28 @@ export function ResultPanel({
   visualizationSpec,
   executionTime,
   generatedCode,
+  error,
 }: ResultPanelProps) {
   const [activeTab, setActiveTab] = useState<string>(
     visualizationSpec ? "chart" : "table"
   );
 
   const showChart = data.length > 0 && data.length <= 100;
+
+  // Display error if present
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Query Error</AlertTitle>
+            <AlertDescription className="text-sm">{error}</AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>

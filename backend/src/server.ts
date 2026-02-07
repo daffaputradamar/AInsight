@@ -73,7 +73,20 @@ async function handleQuery(req: http.IncomingMessage, res: http.ServerResponse):
     });
   });
 
-  const { query, chatHistory } = JSON.parse(body);
+  let query: string;
+  let chatHistory: unknown[];
+  
+  try {
+    const parsed = JSON.parse(body);
+    query = parsed.query;
+    chatHistory = parsed.chatHistory;
+  } catch (error) {
+    console.error('[Server] JSON parse error:', error instanceof Error ? error.message : 'Invalid JSON');
+    res.writeHead(400);
+    res.end(JSON.stringify({ error: 'Invalid JSON in request body' }));
+    return;
+  }
+
   if (!query) {
     res.writeHead(400);
     res.end(JSON.stringify({ error: 'Query required' }));

@@ -77,6 +77,11 @@ function AssistantContent({ message }: { message: ChatMessageType }) {
   }
 
   if (message.result) {
+    // Check for errors in finalResult
+    if (message.result.finalResult && 'error' in message.result.finalResult && typeof message.result.finalResult.error === 'string') {
+      return <ErrorState error={message.result.finalResult.error} />;
+    }
+
     // Extract generated code from the generation response
     const generationResponse = message.result.responses?.find(
       (r) => r.stage === 'generation'

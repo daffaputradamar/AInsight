@@ -72,7 +72,7 @@ Rules:
         tableCount: input.schema.tables.length,
       };
     } catch (error) {
-      console.error('[DataInsightAgent] Failed to parse insight response:', error);
+      console.error('[DataInsightAgent] LLM insight generation failed, using fallback generic questions:', error instanceof Error ? error.message : error);
       return {
         datasetDescription: this.generateDefaultDescription(input.schema),
         suggestedQuestions: this.generateDefaultQuestions(input.schema),

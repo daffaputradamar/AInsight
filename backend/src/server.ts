@@ -74,7 +74,7 @@ async function handleQuery(req: http.IncomingMessage, res: http.ServerResponse):
   });
 
   let query: string;
-  let chatHistory: unknown[];
+  let chatHistory: Array<{role: string, content: string}> | undefined;
   
   try {
     const parsed = JSON.parse(body);

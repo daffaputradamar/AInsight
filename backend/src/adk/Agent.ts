@@ -177,30 +177,153 @@ export abstract class Agent {
       throw new Error('LLM returned empty response. Check if LiteLLM proxy is running and API key is valid.');
     }
 
-    // Try to extract JSON from markdown code blocks
-    let jsonStr = response;
-    const codeBlockMatch = response.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    // Try to extract JSON from various formats
+    let jsonStr = response.trim();
+    
+    // Remove markdown code blocks (```json ... ``` or ``` ... ```)
+    const codeBlockMatch = jsonStr.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
     if (codeBlockMatch) {
-      jsonStr = codeBlockMatch[1];
-    } else {
-      // Try to find JSON object in response
-      const jsonObjectMatch = response.match(/\{[\s\S]*\}/);
-      if (jsonObjectMatch) {
-        jsonStr = jsonObjectMatch[0];
+      jsonStr = codeBlockMatch[1].trim();
+    }
+    
+    // If still doesn't start with { or [, try to find JSON object/array
+    if (!jsonStr.startsWith('{') && !jsonStr.startsWith('[')) {
+      // Find first { or [
+      const startIdx = Math.min(
+        jsonStr.indexOf('{') >= 0 ? jsonStr.indexOf('{') : Infinity,
+        jsonStr.indexOf('[') >= 0 ? jsonStr.indexOf('[') : Infinity
+      );
+      if (startIdx !== Infinity) {
+        jsonStr = jsonStr.substring(startIdx);
       }
     }
 
+    // Try to parse, and if it fails, try to fix by finding matching braces
+    let parsed: unknown;
     try {
-      const trimmed = jsonStr.trim();
-      if (!trimmed) {
-        throw new Error('No JSON content found in response');
+      if (!jsonStr || (!jsonStr.startsWith('{') && !jsonStr.startsWith('['))) {
+        throw new Error('No JSON object or array found in response');
       }
-      const parsed = JSON.parse(trimmed);
-      return schema.parse(parsed);
-    } catch (error) {
-      console.error(`[${this.config.name}] Failed to parse response:`, response);
-      throw new Error(`Failed to parse LLM response as JSON: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      parsed = JSON.parse(jsonStr);
+    } catch (parseError) {
+      // Try to find a complete JSON object by counting braces
+      const isObject = jsonStr.startsWith('{');
+      const openChar = isObject ? '{' : '[';
+      const closeChar = isObject ? '}' : ']';
+      
+      let braceCount = 0;
+      let endIdx = 0;
+      let inString = false;
+      let escapeNext = false;
+      
+      for (let i = 0; i < jsonStr.length; i++) {
+        const char = jsonStr[i];
+        
+        // Track if we're inside a string to avoid counting braces in strings
+        if (char === '"' && !escapeNext) {
+          inString = !inString;
+        }
+        escapeNext = char === '\\' && !escapeNext;
+        
+        if (!inString) {
+          if (char === openChar) braceCount++;
+          if (char === closeChar) braceCount--;
+          
+          // Found balanced braces — end of JSON object
+          if (braceCount === 0 && i > 0) {
+            endIdx = i + 1;
+            break;
+          }
+        }
+      }
+      
+      // If we found balanced braces, try parsing that portion
+      if (endIdx > 0) {
+        try {
+          parsed = JSON.parse(jsonStr.substring(0, endIdx));
+        } catch (innerError) {
+          // Partial JSON couldn't be recovered — try healing
+          parsed = this.healPartialJSON(jsonStr, isObject);
+        }
+      } else {
+        // No balanced braces found — try healing the partial JSON
+        parsed = this.healPartialJSON(jsonStr, isObject);
+      }
+      
+      // If healing failed, log and throw
+      if (!parsed) {
+        console.error(`[${this.config.name}] Failed to parse response:`, response);
+        throw new Error(`Failed to parse LLM response as JSON: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
+      }
     }
+
+    return schema.parse(parsed);
+  }
+
+  /**
+   * Attempt to heal truncated/incomplete JSON by closing unclosed strings and braces.
+   * Returns the parsed object if successful, null otherwise.
+   */
+  private healPartialJSON(jsonStr: string, isObject: boolean): unknown | null {
+    try {
+      // Try increasingly healing strategies
+      let healed = jsonStr;
+      
+      // Strategy 1: Check if we just have an unclosed string at the end
+      const lastQuoteIdx = healed.lastIndexOf('"');
+      if (lastQuoteIdx > -1 && lastQuoteIdx < healed.length - 1) {
+        // There's content after the last quote — likely unterminated
+        healed = healed.substring(0, lastQuoteIdx + 1);
+      } else if (lastQuoteIdx === healed.length - 1 && !this.isStringTerminated(healed)) {
+        // String is unterminated, close it
+        healed += '"';
+      }
+      
+      // Strategy 2: Add missing closing braces/brackets
+      let openCount = 0, closeCount = 0;
+      let inString = false, escapeNext = false;
+      for (let i = 0; i < healed.length; i++) {
+        const char = healed[i];
+        if (char === '"' && !escapeNext) inString = !inString;
+        escapeNext = char === '\\' && !escapeNext;
+        if (!inString) {
+          if (isObject && char === '{') openCount++;
+          if (isObject && char === '}') closeCount++;
+          if (!isObject && char === '[') openCount++;
+          if (!isObject && char === ']') closeCount++;
+        }
+      }
+      
+      const closeChar = isObject ? '}' : ']';
+      while (closeCount < openCount) {
+        healed += closeChar;
+        closeCount++;
+      }
+      
+      // Try parsing the healed JSON
+      return JSON.parse(healed);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Check if a string (up to the end) is properly terminated.
+   */
+  private isStringTerminated(str: string): boolean {
+    let escaped = false;
+    for (let i = str.length - 1; i >= 0; i--) {
+      const char = str[i];
+      if (char === '"' && !escaped) {
+        return true; // Found unescaped closing quote
+      }
+      if (char === '\\') {
+        escaped = !escaped;
+      } else {
+        escaped = false;
+      }
+    }
+    return false;
   }
 
   /**

@@ -63,6 +63,33 @@ export interface VisualizationSpec {
   data?: unknown[];
 }
 
+// Chart Recommendation Types
+export interface ChartOption {
+  type: "bar" | "line" | "scatter" | "pie" | "table";
+  label: string;
+  score: number;
+  reasoning: string;
+  isRecommended: boolean;
+}
+
+// Confirmation Types
+export interface QueryConfirmation {
+  type: "query";
+  pendingCode: {
+    code: string;
+    language: "sql" | "javascript";
+    explanation: string;
+  };
+}
+
+export interface ChartConfirmation {
+  type: "chart";
+  chartOptions: ChartOption[];
+  data: Record<string, unknown>[];
+}
+
+export type ConfirmationRequest = QueryConfirmation | ChartConfirmation;
+
 // Orchestration Types
 export type AgentStage = "understanding" | "generation" | "execution" | "reasoning" | "insight";
 
@@ -100,6 +127,10 @@ export interface OrchestrationState {
   } | null;
   iterations?: number;
   iterationHistory?: IterationInfo[];
+  // Confirmation flow fields
+  confirmationRequired?: boolean;
+  confirmationType?: "query" | "chart" | null;
+  confirmation?: ConfirmationRequest;
 }
 
 // Chat UI Types
@@ -111,6 +142,10 @@ export interface ChatMessage {
   isLoading?: boolean;
   result?: OrchestrationState;
   error?: string;
+  messageType?: "text" | "query-confirmation" | "chart-recommendation";
+  onApproveQuery?: () => void;
+  onModifyQuery?: (userInstruction: string) => void;
+  onSelectChart?: (chartType: string) => void;
 }
 
 export interface ChatHistoryMessage {

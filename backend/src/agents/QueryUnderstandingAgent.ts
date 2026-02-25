@@ -9,7 +9,7 @@ const ClassifyOutputSchema = z.object({
   requiresDatabase: z.boolean(),
   shouldVisualize: z.boolean(),
   intent: z.string(),
-  chatResponse: z.string().optional(),
+  chatResponse: z.string().nullish().transform(v => v ?? undefined),
 });
 
 type ClassifyInput = z.infer<typeof ClassifyInputSchema>;
@@ -71,7 +71,7 @@ Rules:
         systemPrompt,
         input.query,
         ClassifyOutputSchema,
-        { temperature: 0.3, maxTokens: 300 },
+        { temperature: 0.3, maxTokens: 2000 },
       );
 
       return {

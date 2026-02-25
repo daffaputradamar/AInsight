@@ -2,7 +2,15 @@ import 'dotenv/config';
 import http from 'http';
 import { createLLMClient, AVAILABLE_MODELS, getLLMConfig } from './config/llm.js';
 import { createAdapterForSession, hasSessionConfig, configureSession, getSessionConfig, DbConfig } from './adapters/postgres.js';
-import { AgentOrchestrator } from './orchestration/AgentOrchestrator.js';
+import { AgentOrchestrator, OrchestrationState } from './orchestration/AgentOrchestrator.js';
+
+/**
+ * Per-session pipeline state cache.
+ * Preserves intermediate results at confirmation checkpoints so subsequent
+ * confirmation actions (approve / modify / select-chart) can skip already-
+ * completed pipeline stages instead of re-running the full pipeline.
+ */
+const sessionStateCache = new Map<string, OrchestrationState>();
 
 const PORT = parseInt(process.env.PORT || '3001');
 
@@ -75,11 +83,13 @@ async function handleQuery(req: http.IncomingMessage, res: http.ServerResponse):
 
   let query: string;
   let chatHistory: Array<{role: string, content: string}> | undefined;
+  let confirmAction: {action: string, payload?: any} | undefined;
   
   try {
     const parsed = JSON.parse(body);
     query = parsed.query;
     chatHistory = parsed.chatHistory;
+    confirmAction = parsed.confirmAction;
   } catch (error) {
     console.error('[Server] JSON parse error:', error instanceof Error ? error.message : 'Invalid JSON');
     res.writeHead(400);
@@ -87,7 +97,8 @@ async function handleQuery(req: http.IncomingMessage, res: http.ServerResponse):
     return;
   }
 
-  if (!query) {
+  // Query is only required if not confirming an action
+  if (!query && !confirmAction) {
     res.writeHead(400);
     res.end(JSON.stringify({ error: 'Query required' }));
     return;
@@ -102,7 +113,20 @@ async function handleQuery(req: http.IncomingMessage, res: http.ServerResponse):
     const llm = createLLMClient(modelOverride);
     console.log('[Server] Processing /api/query for session:', sessionId, 'hasConfig:', hasSessionConfig(sessionId));
     const orchestrator = new AgentOrchestrator(llm, { modelOverride, dbAdapter: dbAdapter ?? undefined });
-    const result = await orchestrator.processQuery(query, chatHistory);
+
+    // Load cached pipeline state for confirmation actions so the orchestrator
+    // can resume from the checkpoint without re-running completed stages.
+    const cachedState = confirmAction ? sessionStateCache.get(sessionId) : undefined;
+
+    const result = await orchestrator.processQuery(query, chatHistory, confirmAction, cachedState);
+
+    // Cache the state when pausing at a checkpoint so the next action can resume.
+    if (result.confirmationRequired) {
+      sessionStateCache.set(sessionId, result);
+    } else {
+      // Pipeline completed — evict stale cache to free memory.
+      sessionStateCache.delete(sessionId);
+    }
 
     res.writeHead(200);
     res.end(JSON.stringify(result, null, 2));

@@ -46,11 +46,15 @@ function getHeaders(): HeadersInit {
 /**
  * Process a natural language query
  */
-export async function processQuery(query: string, chatHistory?: ChatHistoryMessage[]): Promise<OrchestrationState> {
+export async function processQuery(
+  query: string,
+  chatHistory?: ChatHistoryMessage[],
+  confirmAction?: { action: string; payload?: any }
+): Promise<OrchestrationState> {
   const response = await fetch(`${API_BASE_URL}/api/query`, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify({ query, chatHistory }),
+    body: JSON.stringify({ query, chatHistory, confirmAction }),
   });
 
   if (!response.ok) {
@@ -67,7 +71,8 @@ export async function processQuery(query: string, chatHistory?: ChatHistoryMessa
 export async function processQueryStream(
   query: string,
   onChunk: (chunk: StreamChunk) => void,
-  chatHistory?: ChatHistoryMessage[]
+  chatHistory?: ChatHistoryMessage[],
+  confirmAction?: { action: string; payload?: any }
 ): Promise<OrchestrationState> {
   // For now, simulate streaming with progress updates
   // The backend can be updated later to support actual SSE streaming
@@ -77,7 +82,7 @@ export async function processQueryStream(
   const response = await fetch(`${API_BASE_URL}/api/query`, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify({ query, chatHistory }),
+    body: JSON.stringify({ query, chatHistory, confirmAction }),
   });
 
   if (!response.ok) {

@@ -63,7 +63,7 @@ Rules:
         systemPrompt,
         schemaStr,
         AnalyzeSchemaOutputSchema,
-        { temperature: 0.7, maxTokens: 500 },
+        { temperature: 0.7, maxTokens: 2000 },
       );
 
       return {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Header } from "@/components/header";
 import { SchemaViewer } from "@/components/schema/schema-viewer";
 import { SuggestedQuestions } from "@/components/insights/suggested-questions";
@@ -19,14 +19,25 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { PanelLeftClose, PanelLeft } from "lucide-react";
 
+// Pure helper – no closure needed
+function getMessageType(state: OrchestrationState): "text" | "query-confirmation" | "chart-recommendation" {
+  if (!state.confirmationRequired) return "text";
+  if (state.confirmationType === "query") return "query-confirmation";
+  if (state.confirmationType === "chart") return "chart-recommendation";
+  return "text";
+}
+
 export default function HomePage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [schemaRefreshTrigger, setSchemaRefreshTrigger] = useState(0);
-  // Check sessionStorage immediately (client-side) to avoid flash
   const [dbConfigured, setDbConfigured] = useState<boolean | null>(null);
   const [mounted, setMounted] = useState(false);
+
+  // Refs so confirmation callbacks always read the latest values without stale closures
+  const lastQueryRef = useRef<string>("");
+  const lastChatHistoryRef = useRef<ChatHistoryMessage[]>([]);
 
   // Check DB configuration on mount (client-side only)
   useEffect(() => {
@@ -42,12 +53,15 @@ export default function HomePage() {
       .slice(-6)
       .map(msg => ({
         role: msg.role,
-        content: msg.role === 'user' 
-          ? msg.content 
+        content: msg.role === 'user'
+          ? msg.content
           : (msg.result?.finalResult?.explanation || msg.content || '')
       }));
 
-    // Add user message
+    // Store in refs so confirmation callbacks always read the latest values
+    lastQueryRef.current = query;
+    lastChatHistoryRef.current = chatHistory;
+
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       role: "user",
@@ -55,7 +69,6 @@ export default function HomePage() {
       timestamp: new Date(),
     };
 
-    // Add placeholder assistant message
     const assistantMessageId = `assistant-${Date.now()}`;
     const assistantMessage: ChatMessage = {
       id: assistantMessageId,
@@ -70,13 +83,11 @@ export default function HomePage() {
 
     try {
       const result = await processQueryStream(query, (chunk) => {
-        // Handle streaming updates
         if (chunk.type === "stage" && chunk.message) {
           toast.info(chunk.message, { duration: 2000 });
         }
-      }, chatHistory);
+      }, chatHistory, undefined);
 
-      // Update assistant message with result
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === assistantMessageId
@@ -84,13 +95,22 @@ export default function HomePage() {
                 ...msg,
                 isLoading: false,
                 result: result as OrchestrationState,
-                content: result.finalResult?.explanation || "Query processed successfully",
+                content: result.finalResult?.explanation || "Review the generated query below.",
+                messageType: getMessageType(result),
+                onApproveQuery: result.confirmationType === "query"
+                  ? () => handleApproveQuery(assistantMessageId)
+                  : undefined,
+                onModifyQuery: result.confirmationType === "query"
+                  ? (instruction: string) => handleModifyQuery(assistantMessageId, instruction)
+                  : undefined,
+                onSelectChart: result.confirmationType === "chart"
+                  ? (chartType: string) => handleSelectChart(assistantMessageId, chartType)
+                  : undefined,
               }
             : msg
         )
       );
     } catch (error) {
-      // Update assistant message with error
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === assistantMessageId
@@ -107,6 +127,127 @@ export default function HomePage() {
       setIsLoading(false);
     }
   }, [messages]);
+
+  const handleApproveQuery = useCallback(async (messageId: string) => {
+    // Show loading on this specific message bubble immediately
+    setMessages((prev) =>
+      prev.map((msg) => msg.id === messageId ? { ...msg, isLoading: true } : msg)
+    );
+    setIsLoading(true);
+    try {
+      const result = await processQueryStream(lastQueryRef.current, (chunk) => {
+        if (chunk.type === "stage" && chunk.message) {
+          toast.info(chunk.message, { duration: 2000 });
+        }
+      }, lastChatHistoryRef.current, { action: "approve" });
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId
+            ? {
+                ...msg,
+                isLoading: false,
+                result: result as OrchestrationState,
+                content: result.finalResult?.explanation || "Query executed successfully!",
+                messageType: getMessageType(result),
+                onApproveQuery: undefined,
+                onModifyQuery: undefined,
+                onSelectChart: result.confirmationType === "chart"
+                  ? (chartType: string) => handleSelectChart(messageId, chartType)
+                  : undefined,
+              }
+            : msg
+        )
+      );
+    } catch (error) {
+      setMessages((prev) =>
+        prev.map((msg) => msg.id === messageId ? { ...msg, isLoading: false } : msg)
+      );
+      toast.error("Failed to approve and execute query");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []); // empty – reads only refs
+
+  const handleModifyQuery = useCallback(async (messageId: string, instruction: string) => {
+    setMessages((prev) =>
+      prev.map((msg) => msg.id === messageId ? { ...msg, isLoading: true } : msg)
+    );
+    setIsLoading(true);
+    try {
+      const result = await processQueryStream(lastQueryRef.current, (chunk) => {
+        if (chunk.type === "stage" && chunk.message) {
+          toast.info(chunk.message, { duration: 2000 });
+        }
+      }, lastChatHistoryRef.current, { action: "modify", payload: { userInstruction: instruction } });
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId
+            ? {
+                ...msg,
+                isLoading: false,
+                result: result as OrchestrationState,
+                content: result.finalResult?.explanation || "Query regenerated with your changes.",
+                messageType: getMessageType(result),
+                onApproveQuery: result.confirmationType === "query"
+                  ? () => handleApproveQuery(messageId)
+                  : undefined,
+                onModifyQuery: result.confirmationType === "query"
+                  ? (inst: string) => handleModifyQuery(messageId, inst)
+                  : undefined,
+                onSelectChart: undefined,
+              }
+            : msg
+        )
+      );
+    } catch (error) {
+      setMessages((prev) =>
+        prev.map((msg) => msg.id === messageId ? { ...msg, isLoading: false } : msg)
+      );
+      toast.error("Failed to modify and regenerate query");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []); // empty – reads only refs
+
+  const handleSelectChart = useCallback(async (messageId: string, chartType: string) => {
+    setMessages((prev) =>
+      prev.map((msg) => msg.id === messageId ? { ...msg, isLoading: true } : msg)
+    );
+    setIsLoading(true);
+    try {
+      const result = await processQueryStream(lastQueryRef.current, (chunk) => {
+        if (chunk.type === "stage" && chunk.message) {
+          toast.info(chunk.message, { duration: 2000 });
+        }
+      }, lastChatHistoryRef.current, { action: "select-chart", payload: { chartType } });
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId
+            ? {
+                ...msg,
+                isLoading: false,
+                result: result as OrchestrationState,
+                content: result.finalResult?.explanation || "Chart generated successfully.",
+                messageType: "text",
+                onApproveQuery: undefined,
+                onModifyQuery: undefined,
+                onSelectChart: undefined,
+              }
+            : msg
+        )
+      );
+    } catch (error) {
+      setMessages((prev) =>
+        prev.map((msg) => msg.id === messageId ? { ...msg, isLoading: false } : msg)
+      );
+      toast.error("Failed to generate chart");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []); // empty – reads only refs
 
   const handleQuestionSelect = useCallback((question: string) => {
     if (!isLoading) {

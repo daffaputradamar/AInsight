@@ -18,37 +18,17 @@ export const MODEL_PRESETS: Record<string, Partial<LLMConfig>> = {
   'gpt-oss-20b': {
     model: 'hosted_vllm/openai/gpt-oss-20b',
     temperature: 0.7,
-    maxTokens: 4096,
+    maxTokens: 8192,
   },
   'gemini-3-flash': {
     model: 'gemini/gemini-3-flash-preview',
     temperature: 0.7,
-    maxTokens: 4096,
+    maxTokens: 8192,
   },
-  'gemini-2.0-flash': {
-    model: 'gemini/gemini-2.0-flash',
+  'gemini-3-flash-preview': {
+    model: 'gemini-3-flash-preview',
     temperature: 0.7,
-    maxTokens: 4096,
-  },
-  'gemini-pro': {
-    model: 'gemini/gemini-pro',
-    temperature: 0.7,
-    maxTokens: 2048,
-  },
-  'gpt-4o': {
-    model: 'gpt-4o',
-    temperature: 0.7,
-    maxTokens: 4096,
-  },
-  'gpt-4o-mini': {
-    model: 'gpt-4o-mini',
-    temperature: 0.7,
-    maxTokens: 4096,
-  },
-  'claude-3-5-sonnet': {
-    model: 'anthropic/claude-3-5-sonnet-20241022',
-    temperature: 0.7,
-    maxTokens: 4096,
+    maxTokens: 8192,
   },
 };
 
@@ -58,6 +38,7 @@ export const MODEL_PRESETS: Record<string, Partial<LLMConfig>> = {
 export const AVAILABLE_MODELS = [
   { id: 'gpt-oss-20b', name: 'GPT-OSS-20B', model: 'hosted_vllm/openai/gpt-oss-20b' },
   { id: 'gemini-3-flash', name: 'Gemini 3 Flash', model: 'gemini/gemini-3-flash-preview' },
+  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview', model: 'gemini-3-flash-preview' },
 ];
 
 export const createLLMClient = (modelOverride?: string): OpenAI => {
@@ -86,7 +67,7 @@ export const getLLMConfig = (modelOverride?: string): LLMConfig => {
     baseURL: process.env.AI_BASE_URL || 'http://localhost:4000/v1', // LiteLLM default
     model: finalModel,
     temperature: parseFloat(process.env.AI_TEMPERATURE || String(overridePreset?.temperature ?? presetConfig.temperature ?? 0.7)),
-    maxTokens: parseInt(process.env.AI_MAX_TOKENS || String(overridePreset?.maxTokens ?? presetConfig.maxTokens ?? 2000)),
+    maxTokens: parseInt(process.env.AI_MAX_TOKENS || String(overridePreset?.maxTokens ?? presetConfig.maxTokens ?? 8192)),
     enableReasoning: process.env.AI_ENABLE_REASONING === 'true',
   };
 };

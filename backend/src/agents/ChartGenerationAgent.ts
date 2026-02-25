@@ -5,6 +5,7 @@ const GenerateChartInputSchema = z.object({
   query: z.string().describe('Original user query'),
   data: z.array(z.record(z.string(), z.unknown())).describe('Query result data'),
   explanation: z.string().describe('Reasoning from the reasoning agent'),
+  chartType: z.enum(['bar', 'line', 'scatter', 'pie', 'table']).describe('Preferred chart type to use').optional(),
 });
 
 const ChartSpecOutputSchema = z.object({
@@ -56,7 +57,32 @@ export class ChartGenerationAgent extends Agent {
     // Analyze column types
     const columnAnalysis = this.analyzeColumns(input.data, dataColumns);
 
-    const systemPrompt = `You are a data visualization expert. Given query results, determine the optimal chart type and configuration.
+    const systemPrompt = input.chartType
+      ? `You are a data visualization expert. Given query results and a user-selected chart type, configure the visualization.
+
+Available columns: ${dataColumns.join(', ')}
+
+Column analysis:
+${columnAnalysis}
+
+Data has ${rowCount} rows.
+User selected chart type: ${input.chartType}
+
+Configure the ${input.chartType} chart with appropriate axes:
+- For BAR/LINE: Choose categorical/time-based x-axis and numeric y-axis
+- For SCATTER: Choose two numeric columns as x and y axes
+- For PIE: Choose a categorical column and numeric values to display
+- For TABLE: Use the most relevant columns
+
+Respond with JSON only:
+{
+  "type": "${input.chartType}",
+  "title": "Descriptive chart title",
+  "xAxis": "column_name_for_x_axis",
+  "yAxis": "column_name_for_y_axis",
+  "reasoning": "Explanation of axis selection for this chart type"
+}`
+      : `You are a data visualization expert. Given query results, determine the optimal chart type and configuration.
 
 Available columns: ${dataColumns.join(', ')}
 
@@ -90,7 +116,7 @@ Respond with JSON only:
         systemPrompt,
         `User query: "${input.query}"\n\nData explanation: ${input.explanation}\n\nSample data (first 5 rows):\n${sampleData}`,
         ChartSpecOutputSchema,
-        { temperature: 0.3, maxTokens: 400 },
+        { temperature: 0.3, maxTokens: 2000 },
       );
 
       return {
@@ -105,7 +131,7 @@ Respond with JSON only:
     } catch (error) {
       console.error('[ChartGenerationAgent] LLM chart generation failed, using fallback auto-detection:', error instanceof Error ? error.message : error);
       // Fallback to auto-detection
-      return this.fallbackChartSpec(input.query, dataColumns, input.data);
+      return this.fallbackChartSpec(input.query, dataColumns, input.data, input.chartType);
     }
   }
 
@@ -171,7 +197,8 @@ Respond with JSON only:
   private fallbackChartSpec(
     query: string,
     columns: string[],
-    data: Record<string, unknown>[]
+    data: Record<string, unknown>[],
+    preferredChartType?: string
   ): ChartGenerationOutput {
     // Find first text/categorical column for x-axis
     const xAxis = columns.find(col => {
@@ -185,11 +212,13 @@ Respond with JSON only:
       return typeof val === 'number' || (!isNaN(Number(val)) && col !== xAxis);
     }) || columns[1] || columns[0];
 
-    // Determine chart type based on data characteristics
+    // Determine chart type based on user preference or data characteristics
     let type: VisualizationSpec['type'] = 'bar';
     const rowCount = data.length;
 
-    if (rowCount > 50) {
+    if (preferredChartType && ['bar', 'line', 'scatter', 'pie', 'table'].includes(preferredChartType)) {
+      type = preferredChartType as VisualizationSpec['type'];
+    } else if (rowCount > 50) {
       type = 'table';
     } else if (rowCount <= 7 && columns.length === 2) {
       type = 'pie';
@@ -202,7 +231,9 @@ Respond with JSON only:
         xAxis,
         yAxis,
       },
-      reasoning: 'Fallback: Auto-detected based on data structure',
+      reasoning: preferredChartType
+        ? `Using user-selected ${preferredChartType} chart type`
+        : 'Fallback: Auto-detected based on data structure',
     };
   }
 }

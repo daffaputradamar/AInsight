@@ -14,6 +14,7 @@ export interface CodeGenerationOutput {
   code: string;
   language: 'sql' | 'javascript';
   requiresVisualization: boolean;
+  explanation?: string;
 }
 
 export interface ExecutionResult {

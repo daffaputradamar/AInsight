@@ -69,7 +69,7 @@ Output format: Just write the explanation directly. No JSON, no markdown, no for
     const responseText = await this.chat(
       systemPrompt,
       `Query: "${input.query}"\n\nResult:\n${resultStr}`,
-      { temperature: 0.7, maxTokens: 300 },
+      { temperature: 0.7, maxTokens: 2000 },
     );
 
     // Parse response into explanation and insights
@@ -112,7 +112,7 @@ Return ONLY the JSON object, no markdown or extra text.`;
     const responseText = await this.chat(
       systemPrompt,
       `Original Query: "${input.query}"\n\nExecution Result:\n${resultStr}\n\nGenerated Explanation: ${input.explanation}`,
-      { temperature: 0.3, maxTokens: 500 },
+      { temperature: 0.3, maxTokens: 2000 },
     );
 
     try {

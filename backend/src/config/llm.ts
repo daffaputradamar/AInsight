@@ -38,7 +38,7 @@ export const MODEL_PRESETS: Record<string, Partial<LLMConfig>> = {
 export const AVAILABLE_MODELS = [
   { id: 'gpt-oss-20b', name: 'GPT-OSS-20B', model: 'hosted_vllm/openai/gpt-oss-20b' },
   { id: 'gemini-3-flash', name: 'Gemini 3 Flash', model: 'gemini/gemini-3-flash-preview' },
-  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview', model: 'gemini-3-flash-preview' },
+  // { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview', model: 'gemini-3-flash-preview' },
 ];
 
 export const createLLMClient = (modelOverride?: string): OpenAI => {

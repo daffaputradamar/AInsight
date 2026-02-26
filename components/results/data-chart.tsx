@@ -18,6 +18,14 @@ import {
   ResponsiveContainer,
   ZAxis,
 } from "recharts";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 import type { VisualizationSpec } from "@/lib/types";
 
 interface DataChartProps {
@@ -25,13 +33,16 @@ interface DataChartProps {
   spec?: VisualizationSpec;
 }
 
-// Chart colors from CSS variables
+// Vibrant chart colors palette
 const CHART_COLORS = [
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
+  "#3b82f6", // Blue
+  "#ec4899", // Pink
+  "#10b981", // Emerald
+  "#f59e0b", // Amber
+  "#8b5cf6", // Violet
+  "#06b6d4", // Cyan
+  "#ef4444", // Red
+  "#14b8a6", // Teal
 ];
 
 export function DataChart({ data, spec }: DataChartProps) {
@@ -64,12 +75,12 @@ export function DataChart({ data, spec }: DataChartProps) {
     : transformDataForChart(data, xAxis, yAxis);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-4 w-full">
       {spec?.title && (
-        <h4 className="text-sm font-medium text-center">{spec.title}</h4>
+        <h4 className="text-base font-semibold text-foreground">{spec.title}</h4>
       )}
-      
-      <div className="h-[300px] w-full">
+
+      <div className="w-full h-[350px] rounded-lg border border-border bg-card p-4 shadow-sm">
         <ResponsiveContainer width="100%" height="100%">
           {renderChart(chartType, chartData, xAxis, yAxis)}
         </ResponsiveContainer>
@@ -84,137 +95,160 @@ function renderChart(
   xAxis: string,
   yAxis: string
 ) {
+  const chartConfig: ChartConfig = {
+    value: {
+      label: yAxis,
+      color: CHART_COLORS[0],
+    },
+  };
+
   switch (chartType) {
     case "bar":
       return (
-        <BarChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-          <XAxis
-            dataKey="name"
-            tick={{ fontSize: 12 }}
-            tickLine={false}
-            axisLine={false}
-          />
-          <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "hsl(var(--popover))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "var(--radius)",
-            }}
-          />
-          <Legend />
-          <Bar dataKey="value" name={yAxis} fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} />
-        </BarChart>
+        <ChartContainer config={chartConfig} className="h-full w-full">
+          <BarChart
+            data={chartData}
+            margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <XAxis
+              dataKey="name"
+              tick={{ fontSize: 12 }}
+              tickLine={false}
+              axisLine={false}
+            />
+            <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+            <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+            <ChartLegend content={<ChartLegendContent />} />
+            <Bar
+              dataKey="value"
+              name={yAxis}
+              fill="var(--color-value)"
+              radius={[8, 8, 0, 0]}
+            />
+          </BarChart>
+        </ChartContainer>
       );
 
     case "line":
       return (
-        <LineChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-          <XAxis
-            dataKey="name"
-            tick={{ fontSize: 12 }}
-            tickLine={false}
-            axisLine={false}
-          />
-          <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "hsl(var(--popover))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "var(--radius)",
-            }}
-          />
-          <Legend />
-          <Line
-            type="monotone"
-            dataKey="value"
-            name={yAxis}
-            stroke={CHART_COLORS[0]}
-            strokeWidth={2}
-            dot={{ fill: CHART_COLORS[0] }}
-          />
-        </LineChart>
+        <ChartContainer config={chartConfig} className="h-full w-full">
+          <LineChart
+            data={chartData}
+            margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <XAxis
+              dataKey="name"
+              tick={{ fontSize: 12 }}
+              tickLine={false}
+              axisLine={false}
+            />
+            <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+            <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+            <ChartLegend content={<ChartLegendContent />} />
+            <Line
+              type="monotone"
+              dataKey="value"
+              name={yAxis}
+              stroke="var(--color-value)"
+              strokeWidth={3}
+              dot={{ fill: "var(--color-value)", r: 5 }}
+              activeDot={{ r: 7 }}
+            />
+          </LineChart>
+        </ChartContainer>
       );
 
     case "pie":
       return (
-        <PieChart>
-          <Pie
-            data={chartData}
-            cx="50%"
-            cy="50%"
-            labelLine={false}
-            label={({ name, percent }) =>
-              `${name} (${(percent * 100).toFixed(0)}%)`
-            }
-            outerRadius={100}
-            fill="#8884d8"
-            dataKey="value"
-          >
-            {chartData.map((_, index) => (
-              <Cell
-                key={`cell-${index}`}
-                fill={CHART_COLORS[index % CHART_COLORS.length]}
-              />
-            ))}
-          </Pie>
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "hsl(var(--popover))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "var(--radius)",
-            }}
-          />
-          <Legend />
-        </PieChart>
+        <div className="h-full w-full flex items-center justify-center">
+          <PieChart width={300} height={300}>
+            <Pie
+              data={chartData}
+              cx="50%"
+              cy="50%"
+              labelLine={false}
+              label={({ name, percent }) =>
+                `${name} (${(percent * 100).toFixed(0)}%)`
+              }
+              outerRadius={100}
+              fill="#8884d8"
+              dataKey="value"
+            >
+              {(chartData as Array<{ name: string; value: number }>).map(
+                (_, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={CHART_COLORS[index % CHART_COLORS.length]}
+                  />
+                )
+              )}
+            </Pie>
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "hsl(var(--popover))",
+                border: "1px solid hsl(var(--border))",
+                borderRadius: "var(--radius)",
+              }}
+            />
+            <Legend />
+          </PieChart>
+        </div>
       );
 
     case "scatter":
       return (
-        <ScatterChart>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-          <XAxis
-            type="number"
-            dataKey="x"
-            name={xAxis}
-            tick={{ fontSize: 12 }}
-            tickLine={false}
-            axisLine={false}
-          />
-          <YAxis
-            type="number"
-            dataKey="y"
-            name={yAxis}
-            tick={{ fontSize: 12 }}
-            tickLine={false}
-            axisLine={false}
-          />
-          <ZAxis range={[60, 60]} />
-          <Tooltip
-            cursor={{ strokeDasharray: "3 3" }}
-            contentStyle={{
-              backgroundColor: "hsl(var(--popover))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "var(--radius)",
-            }}
-          />
-          <Legend />
-          <Scatter name={`${xAxis} vs ${yAxis}`} data={chartData} fill={CHART_COLORS[0]} />
-        </ScatterChart>
+        <ChartContainer config={chartConfig} className="h-full w-full">
+          <ScatterChart
+            margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <XAxis
+              type="number"
+              dataKey="x"
+              name={xAxis}
+              tick={{ fontSize: 12 }}
+              tickLine={false}
+              axisLine={false}
+            />
+            <YAxis
+              type="number"
+              dataKey="y"
+              name={yAxis}
+              tick={{ fontSize: 12 }}
+              tickLine={false}
+              axisLine={false}
+            />
+            <ChartTooltip
+              content={<ChartTooltipContent hideLabel />}
+              cursor={{ strokeDasharray: "3 3" }}
+            />
+            <ChartLegend content={<ChartLegendContent />} />
+            <Scatter
+              name={`${xAxis} vs ${yAxis}`}
+              data={chartData}
+              fill="var(--color-value)"
+            />
+          </ScatterChart>
+        </ChartContainer>
       );
 
     default:
       // Fallback to bar chart
       return (
-        <BarChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-          <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-          <YAxis tick={{ fontSize: 12 }} />
-          <Tooltip />
-          <Bar dataKey="value" fill={CHART_COLORS[0]} />
-        </BarChart>
+        <ChartContainer config={chartConfig} className="h-full w-full">
+          <BarChart
+            data={chartData}
+            margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+            <YAxis tick={{ fontSize: 12 }} />
+            <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+            <Bar dataKey="value" fill="var(--color-value)" radius={[8, 8, 0, 0]} />
+          </BarChart>
+        </ChartContainer>
       );
   }
 }

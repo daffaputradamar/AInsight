@@ -3,8 +3,9 @@
 import { cn } from "@/lib/utils";
 import type { ChatMessage as ChatMessageType } from "@/lib/types";
 import { ResultPanel } from "@/components/results/result-panel";
+import { CodeBlock } from "@/components/results/code-block";
 import { Button } from "@/components/ui/button";
-import { User, Bot, AlertCircle, Loader2, RefreshCw, Copy, Check } from "lucide-react";
+import { User, Bot, AlertCircle, Loader2, RefreshCw, RotateCcw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import {
@@ -19,15 +20,21 @@ interface ChatMessageProps {
   onApproveQuery?: () => void;
   onModifyQuery?: (instruction: string) => void;
   onSelectChart?: (chartType: string) => void;
+  isLatestAssistant?: boolean;
+  onRedoResponse?: (messageId: string) => void;
 }
 
-export function ChatMessage({ message }: ChatMessageProps) {
+export function ChatMessage({ 
+  message,
+  isLatestAssistant,
+  onRedoResponse,
+}: ChatMessageProps) {
   const isUser = message.role === "user";
 
   return (
     <div
       className={cn(
-        "flex gap-3 p-4 w-full",
+        "flex gap-3 p-4 w-full group",
         isUser ? "flex-row-reverse" : "flex-row"
       )}
     >
@@ -43,8 +50,8 @@ export function ChatMessage({ message }: ChatMessageProps) {
       </div>
 
       <div className={cn(
-        "flex flex-col space-y-2 overflow-hidden",
-        isUser ? "items-end max-w-[80%]" : "items-start flex-1"
+        "flex flex-col space-y-2 overflow-hidden flex-1",
+        isUser ? "items-end" : "items-start"
       )}>
         <div className={cn(
           "flex items-center gap-2 px-1",
@@ -59,13 +66,32 @@ export function ChatMessage({ message }: ChatMessageProps) {
         </div>
 
         {isUser ? (
-          <div className="bg-primary text-primary-foreground px-4 py-2 rounded-2xl rounded-tr-none shadow-xs text-sm">
+          <div className="bg-primary text-primary-foreground px-4 py-2 rounded-2xl rounded-tr-none shadow-xs text-sm max-w-4xl">
             {message.content}
           </div>
         ) : (
-          <div className="w-full bg-muted/30 p-4 rounded-2xl rounded-tl-none border border-border/50">
+          <div className="w-full bg-muted/30 p-4 rounded-2xl rounded-tl-none border border-border/50 max-w-4xl">
             <AssistantContent message={message} />
           </div>
+        )}
+
+        {/* Redo button for latest assistant message */}
+        {!isUser && isLatestAssistant && onRedoResponse && !message.isLoading && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onRedoResponse(message.id)}
+                  className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Regenerate response</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
       </div>
     </div>
@@ -202,22 +228,15 @@ function LoadingState() {
 }
 
 function QueryConfirmation({ message }: { message: ChatMessageType }) {
-  const [copied, setCopied] = useState(false);
   const [modifyInput, setModifyInput] = useState("");
   const [showModifyInput, setShowModifyInput] = useState(false);
 
   const code = message.result?.confirmation?.type === "query" 
     ? message.result.confirmation.pendingCode.code 
     : "";
-  const language = message.result?.confirmation?.type === "query" 
+  const language = (message.result?.confirmation?.type === "query" 
     ? message.result.confirmation.pendingCode.language 
-    : "sql";
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+    : "sql") as "sql" | "javascript";
 
   const handleModify = () => {
     if (modifyInput.trim() && message.onModifyQuery) {
@@ -240,27 +259,8 @@ function QueryConfirmation({ message }: { message: ChatMessageType }) {
         I've generated a query for your request. Please review it before execution:
       </p>
 
-      {/* Code Block */}
-      <div className="bg-slate-950 rounded-lg p-4 space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-slate-400 font-medium">{language.toUpperCase()}</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleCopy}
-            className="h-6 w-6 p-0"
-          >
-            {copied ? (
-              <Check className="h-3.5 w-3.5 text-green-500" />
-            ) : (
-              <Copy className="h-3.5 w-3.5 text-slate-400 hover:text-slate-200" />
-            )}
-          </Button>
-        </div>
-        <pre className="text-xs text-slate-100 overflow-x-auto max-h-48 font-mono">
-          <code>{code}</code>
-        </pre>
-      </div>
+      {/* Code Block with Syntax Highlighting */}
+      <CodeBlock code={code} language={language} title={language} />
 
       {/* Modify Input */}
       {showModifyInput && (
@@ -277,28 +277,48 @@ function QueryConfirmation({ message }: { message: ChatMessageType }) {
 
       {/* Action Buttons */}
       <div className="flex gap-2">
-        <Button
-          variant="default"
-          size="sm"
-          onClick={() => message.onApproveQuery?.()}
-          className="flex-1"
-        >
-          Approve & Execute
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            if (showModifyInput) {
-              handleModify();
-            } else {
-              setShowModifyInput(true);
-            }
-          }}
-          className="flex-1"
-        >
-          {showModifyInput ? "Apply Changes" : "Modify"}
-        </Button>
+        {showModifyInput ? (
+          <>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleModify}
+              className="flex-1"
+            >
+              Apply Changes
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setShowModifyInput(false);
+                setModifyInput("");
+              }}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => message.onApproveQuery?.()}
+              className="flex-1"
+            >
+              Approve & Execute
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowModifyInput(true)}
+              className="flex-1"
+            >
+              Modify
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );

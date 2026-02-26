@@ -333,6 +333,24 @@ export default function HomePage() {
     toast.success("Conversation reset");
   }, []);
 
+  const handleRedoResponse = useCallback((messageId: string) => {
+    // Find the assistant message
+    const messageIndex = messages.findIndex((msg) => msg.id === messageId);
+    if (messageIndex === -1 || messageIndex === 0) return;
+
+    // Find the corresponding user message (should be right before)
+    const userMessage = messages[messageIndex - 1];
+    if (!userMessage || userMessage.role !== "user") return;
+
+    const query = userMessage.content;
+
+    // Remove the pair (user message + assistant message)
+    setMessages((prev) => prev.slice(0, messageIndex - 1));
+
+    // Re-submit the query
+    handleSubmit(query);
+  }, [messages, handleSubmit]);
+
   const handleDisconnect = useCallback(() => {
     clearSessionData();
     setDbConfigured(false);
@@ -407,7 +425,7 @@ export default function HomePage() {
                 </div>
               )}
               
-              <ChatContainer messages={messages} />
+              <ChatContainer messages={messages} onRedoResponse={handleRedoResponse} />
               <QueryInput 
                 onSubmit={handleSubmit} 
                 disabled={isLoading} 

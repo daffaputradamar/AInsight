@@ -8,9 +8,10 @@ import { MessageSquare } from "lucide-react";
 
 interface ChatContainerProps {
   messages: ChatMessageType[];
+  onRedoResponse?: (messageId: string) => void;
 }
 
-export function ChatContainer({ messages }: ChatContainerProps) {
+export function ChatContainer({ messages, onRedoResponse }: ChatContainerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new messages arrive
@@ -27,9 +28,20 @@ export function ChatContainer({ messages }: ChatContainerProps) {
   return (
     <ScrollArea className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:block! px-4">
       <div className="flex flex-col gap-2 py-4">
-        {messages.map((message) => (
-          <ChatMessage key={message.id} message={message} />
-        ))}
+        {messages.map((message, index) => {
+          const isLatestAssistant = 
+            message.role === "assistant" && 
+            index === messages.length - 1;
+          
+          return (
+            <ChatMessage 
+              key={message.id} 
+              message={message}
+              isLatestAssistant={isLatestAssistant}
+              onRedoResponse={onRedoResponse}
+            />
+          );
+        })}
       </div>
       <div ref={scrollRef} />
     </ScrollArea>

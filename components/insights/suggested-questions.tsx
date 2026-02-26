@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getInsights } from "@/lib/api";
+import { getInsights, DatabaseNotConfiguredError } from "@/lib/api";
+import { useReconnection } from "@/context/reconnection-context";
 import type { DataInsightOutput } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,6 +17,8 @@ export function SuggestedQuestions({ onQuestionSelect }: SuggestedQuestionsProps
   const [insights, setInsights] = useState<DataInsightOutput | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { setShowReconnectDialog, setFailedRequest, setReconnectError } =
+    useReconnection();
 
   const loadInsights = async () => {
     setLoading(true);
@@ -24,7 +27,22 @@ export function SuggestedQuestions({ onQuestionSelect }: SuggestedQuestionsProps
       const data = await getInsights();
       setInsights(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load insights");
+      const errorMsg =
+        err instanceof Error ? err.message : "Failed to load insights";
+
+      // Check if it's a database not configured error
+      if (err instanceof DatabaseNotConfiguredError) {
+        console.log("[SuggestedQuestions] Database not configured, triggering reconnect");
+        // Set up the failed request to retry after reconnection
+        setFailedRequest({
+          name: "Load suggestions",
+          fn: () => getInsights().then((data) => setInsights(data)),
+        });
+        setReconnectError(errorMsg);
+        setShowReconnectDialog(true);
+      } else {
+        setError(errorMsg);
+      }
     } finally {
       setLoading(false);
     }

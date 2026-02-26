@@ -3,7 +3,7 @@
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Moon, Sun, Database, Settings, Check, RotateCcw, LogOut } from "lucide-react";
+import { Moon, Sun, Database, Settings, RotateCcw, LogOut, ChevronDown, Plug } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -30,8 +38,10 @@ import {
   setSelectedModel,
   getSelectedModel,
   getStoredDbConfig,
+  clearSessionData,
 } from "@/lib/api";
-import type { DbConfig, ModelInfo } from "@/lib/types";
+import { getConnection, clearConnection } from "@/lib/connection-storage";
+import type { DbConfig, ModelInfo, ConnectionInfo } from "@/lib/types";
 
 interface HeaderProps {
   onSettingsChange?: () => void;
@@ -45,6 +55,7 @@ export function Header({ onSettingsChange, onResetConversation, onDisconnect }: 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [selectedModel, setSelectedModelState] = useState<string>("");
+  const [connection, setConnection] = useState<ConnectionInfo | null>(null);
   const [dbConfig, setDbConfigState] = useState<DbConfig>({
     host: "localhost",
     port: 5432,
@@ -61,6 +72,10 @@ export function Header({ onSettingsChange, onResetConversation, onDisconnect }: 
 
   async function loadSettings() {
     try {
+      // Load saved connection info
+      const savedConnection = getConnection();
+      setConnection(savedConnection);
+
       // Load available models
       const modelsResponse = await getAvailableModels();
       setModels(modelsResponse.models);
@@ -111,12 +126,27 @@ export function Header({ onSettingsChange, onResetConversation, onDisconnect }: 
       await setDbConfig(dbConfig);
       toast.success("Database configuration updated");
       setSettingsOpen(false);
+      // Update connection display
+      const savedConnection = getConnection();
+      setConnection(savedConnection);
       onSettingsChange?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update database config");
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function handleDisconnectFromDropdown() {
+    clearConnection();
+    clearSessionData();
+    setConnection(null);
+    toast.success("Disconnected from database");
+    onDisconnect?.();
+  }
+
+  function handleChangeConnection() {
+    setSettingsOpen(true);
   }
 
   return (
@@ -144,8 +174,61 @@ export function Header({ onSettingsChange, onResetConversation, onDisconnect }: 
             </Button>
           )}
 
-          {/* Disconnect Button */}
-          {onDisconnect && (
+          {/* Connection Status Dropdown */}
+          {connection && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 max-w-xs"
+                >
+                  <Plug className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  <span className="hidden sm:inline text-xs truncate">
+                    {connection.database}
+                  </span>
+                  <ChevronDown className="h-4 w-4 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Database Connection</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <div className="px-2 py-2 text-xs space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Host:</span>
+                    <span className="font-mono">{connection.host}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Port:</span>
+                    <span className="font-mono">{connection.port}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Database:</span>
+                    <span className="font-mono">{connection.database}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">User:</span>
+                    <span className="font-mono">{connection.user}</span>
+                  </div>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleChangeConnection}>
+                  <Settings className="h-4 w-4 mr-2" />
+                  Change Connection
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handleDisconnectFromDropdown}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Disconnect
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {/* Disconnect Button (for backward compatibility, shown if no connection dropdown) */}
+          {!connection && onDisconnect && (
             <Button
               variant="ghost"
               size="sm"
@@ -174,18 +257,13 @@ export function Header({ onSettingsChange, onResetConversation, onDisconnect }: 
             </Select>
           )}
 
-          {/* Settings Dialog */}
+          {/* Settings Dialog - accessible via "Change Connection" in dropdown */}
           <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-            <DialogTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="Settings">
-                <Settings className="h-5 w-5" />
-              </Button>
-            </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
                 <DialogTitle>Database Settings</DialogTitle>
                 <DialogDescription>
-                  Configure your PostgreSQL database connection. Settings are stored per browser tab.
+                  Configure your PostgreSQL database connection. Your connection details (except password) are saved for easy reconnection.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">

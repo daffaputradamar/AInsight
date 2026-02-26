@@ -170,6 +170,23 @@ export interface DbConfig {
   password?: string;
 }
 
+// Connection Info Type (without password, used for persistence and display)
+export interface ConnectionInfo {
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+}
+
+// Reconnection Status Types
+export type ReconnectStatus = "idle" | "connecting" | "failed" | "success";
+
+export interface ReconnectState {
+  status: ReconnectStatus;
+  attemptCount: number;
+  error?: string;
+}
+
 // Model Selection Types
 export interface ModelInfo {
   id: string;

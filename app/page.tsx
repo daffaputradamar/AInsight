@@ -7,7 +7,10 @@ import { SuggestedQuestions } from "@/components/insights/suggested-questions";
 import { ChatContainer } from "@/components/chat/chat-container";
 import { QueryInput } from "@/components/chat/query-input";
 import { SetupPage } from "@/components/setup-page";
+import { ReconnectDialog } from "@/components/reconnect-dialog";
 import { processQueryStream, isDbConfiguredLocally, clearSessionData } from "@/lib/api";
+import { useAutoReconnect } from "@/hooks/use-auto-reconnect";
+import { useReconnection } from "@/context/reconnection-context";
 import type { ChatMessage, OrchestrationState, ChatHistoryMessage } from "@/lib/types";
 import { toast } from "sonner";
 import {
@@ -35,6 +38,12 @@ export default function HomePage() {
   const [dbConfigured, setDbConfigured] = useState<boolean | null>(null);
   const [mounted, setMounted] = useState(false);
 
+  // Auto-reconnect hook for session recovery on app mount
+  const { status } = useAutoReconnect();
+
+  // Reconnection context for handling reconnect flow
+  const { setOnSuccessCallback } = useReconnection();
+
   // Refs so confirmation callbacks always read the latest values without stale closures
   const lastQueryRef = useRef<string>("");
   const lastChatHistoryRef = useRef<ChatHistoryMessage[]>([]);
@@ -46,6 +55,18 @@ export default function HomePage() {
     const isConfigured = isDbConfiguredLocally();
     setDbConfigured(isConfigured);
   }, []);
+
+  // Set success callback to refresh schema when reconnection happens
+  useEffect(() => {
+    setOnSuccessCallback(() => {
+      console.log("[HomePage] Refreshing schema after successful reconnection");
+      setSchemaRefreshTrigger((prev) => prev + 1);
+    });
+
+    return () => {
+      setOnSuccessCallback(null);
+    };
+  }, [setOnSuccessCallback]);
 
   const handleSubmit = useCallback(async (query: string) => {
     // Build chat history from recent messages (last 6 messages = 3 exchanges)
@@ -111,18 +132,37 @@ export default function HomePage() {
         )
       );
     } catch (error) {
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === assistantMessageId
-            ? {
-                ...msg,
-                isLoading: false,
-                error: error instanceof Error ? error.message : "An error occurred",
-              }
-            : msg
-        )
-      );
-      toast.error("Failed to process query");
+      const errorMsg = error instanceof Error ? error.message : "An error occurred";
+      
+      // If database is not configured (server restarted), show reconnect dialog
+      if (isDatabaseNotConfiguredError(error)) {
+        console.log("[HomePage] Database not configured after server restart, showing reconnect dialog");
+        setShowReconnectDialog(true);
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMessageId
+              ? {
+                  ...msg,
+                  isLoading: false,
+                  error: "Database connection was lost. Please reconnect.",
+                }
+              : msg
+          )
+        );
+      } else {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMessageId
+              ? {
+                  ...msg,
+                  isLoading: false,
+                  error: errorMsg,
+                }
+              : msg
+          )
+        );
+        toast.error("Failed to process query");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -163,7 +203,14 @@ export default function HomePage() {
       setMessages((prev) =>
         prev.map((msg) => msg.id === messageId ? { ...msg, isLoading: false } : msg)
       );
-      toast.error("Failed to approve and execute query");
+      
+      if (isDatabaseNotConfiguredError(error)) {
+        console.log("[HomePage] Database not configured, showing reconnect dialog");
+        setShowReconnectDialog(true);
+        toast.error("Database connection was lost. Please reconnect.");
+      } else {
+        toast.error("Failed to approve and execute query");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -205,7 +252,14 @@ export default function HomePage() {
       setMessages((prev) =>
         prev.map((msg) => msg.id === messageId ? { ...msg, isLoading: false } : msg)
       );
-      toast.error("Failed to modify and regenerate query");
+      
+      if (isDatabaseNotConfiguredError(error)) {
+        console.log("[HomePage] Database not configured, showing reconnect dialog");
+        setShowReconnectDialog(true);
+        toast.error("Database connection was lost. Please reconnect.");
+      } else {
+        toast.error("Failed to modify and regenerate query");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -243,7 +297,14 @@ export default function HomePage() {
       setMessages((prev) =>
         prev.map((msg) => msg.id === messageId ? { ...msg, isLoading: false } : msg)
       );
-      toast.error("Failed to generate chart");
+      
+      if (isDatabaseNotConfiguredError(error)) {
+        console.log("[HomePage] Database not configured, showing reconnect dialog");
+        setShowReconnectDialog(true);
+        toast.error("Database connection was lost. Please reconnect.");
+      } else {
+        toast.error("Failed to generate chart");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -296,6 +357,9 @@ export default function HomePage() {
         onResetConversation={handleResetConversation}
         onDisconnect={handleDisconnect}
       />
+
+      {/* Reconnect Dialog (managed by context) */}
+      <ReconnectDialog />
       
       <div className="flex-1 overflow-hidden">
         <ResizablePanelGroup direction="horizontal">

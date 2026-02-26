@@ -2,7 +2,9 @@
  * API Client for AInsight Backend
  */
 
-import type { OrchestrationState, SchemaMetadata, DataInsightOutput, StreamChunk, DbConfig, ModelsResponse, ChatHistoryMessage } from "./types";
+import type { OrchestrationState, SchemaMetadata, DataInsightOutput, StreamChunk, DbConfig, ModelsResponse, ChatHistoryMessage, ConnectionInfo } from "./types";
+import { saveConnection, getConnection } from "./connection-storage";
+import { parseErrorResponse, isDatabaseNotConfigured } from "./api-error";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -58,8 +60,7 @@ export async function processQuery(
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: "Unknown error" }));
-    throw new Error(error.error || `HTTP ${response.status}`);
+    await parseErrorResponse(response);
   }
 
   return response.json();
@@ -114,8 +115,7 @@ export async function getSchema(): Promise<SchemaMetadata> {
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: "Unknown error" }));
-    throw new Error(error.error || `HTTP ${response.status}`);
+    await parseErrorResponse(response);
   }
 
   return response.json();
@@ -131,8 +131,7 @@ export async function getInsights(): Promise<DataInsightOutput> {
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: "Unknown error" }));
-    throw new Error(error.error || `HTTP ${response.status}`);
+    await parseErrorResponse(response);
   }
 
   // Extract insights from the response
@@ -210,6 +209,15 @@ export async function setDbConfig(config: DbConfig): Promise<void> {
   if (typeof window !== "undefined") {
     sessionStorage.setItem("ainsight_db_config", JSON.stringify(config));
   }
+
+  // Save connection info (without password) for auto-reconnect
+  const connectionInfo: ConnectionInfo = {
+    host: config.host,
+    port: config.port,
+    database: config.database,
+    user: config.user,
+  };
+  saveConnection(connectionInfo);
 }
 
 /**
@@ -273,6 +281,24 @@ export function isDbConfiguredLocally(): boolean {
 }
 
 /**
+ * Reconnect with saved connection info and provided password
+ * Used when auto-reconnect fails and user provides password
+ */
+export async function reconnectWithPassword(password: string): Promise<void> {
+  const connection = getConnection();
+  if (!connection) {
+    throw new Error("No saved connection found. Please configure database.");
+  }
+
+  const config: DbConfig = {
+    ...connection,
+    password,
+  };
+
+  return setDbConfig(config);
+}
+
+/**
  * Clear all session data (for reset)
  */
 export function clearSessionData(): void {
@@ -287,3 +313,7 @@ export function clearSessionData(): void {
  * Get the current session ID
  */
 export { getSessionId };
+/**
+ * Export error types for use in components
+ */
+export { DatabaseNotConfiguredError, isDatabaseNotConfigured } from "./api-error";

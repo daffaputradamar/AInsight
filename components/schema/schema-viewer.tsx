@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { getSchema } from "@/lib/api";
+import { getSchema, DatabaseNotConfiguredError } from "@/lib/api";
+import { useReconnection } from "@/context/reconnection-context";
 import type { SchemaMetadata, TableSchema } from "@/lib/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,6 +24,8 @@ export function SchemaViewer({ refreshTrigger }: SchemaViewerProps) {
   const [schema, setSchema] = useState<SchemaMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { setShowReconnectDialog, setFailedRequest, setReconnectError } =
+    useReconnection();
 
   const loadSchema = useCallback(async () => {
     setLoading(true);
@@ -31,11 +34,26 @@ export function SchemaViewer({ refreshTrigger }: SchemaViewerProps) {
       const data = await getSchema();
       setSchema(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load schema");
+      const errorMsg =
+        err instanceof Error ? err.message : "Failed to load schema";
+
+      // Check if it's a database not configured error
+      if (err instanceof DatabaseNotConfiguredError) {
+        console.log("[SchemaViewer] Database not configured, triggering reconnect");
+        // Set up the failed request to retry after reconnection
+        setFailedRequest({
+          name: "Load schema",
+          fn: () => getSchema().then((data) => setSchema(data)),
+        });
+        setReconnectError(errorMsg);
+        setShowReconnectDialog(true);
+      } else {
+        setError(errorMsg);
+      }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setShowReconnectDialog, setFailedRequest, setReconnectError]);
 
   useEffect(() => {
     loadSchema();
